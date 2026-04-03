@@ -1,7 +1,6 @@
 import sys
-import eml_parser
-import json
-import datetime
+import base64
+import re
 
 def split_headers_body(raw_email: str):
     parts = raw_email.split("\n\n", 1)
@@ -70,7 +69,7 @@ def parse_headers(header_text: str):
 
     return headers
 
-def readmail(filepath):
+def read_mail(filepath: str):
     with open(filepath, 'r') as file:
         raw_email = file.read()
         file.close()
@@ -81,28 +80,59 @@ def readmail(filepath):
 
     return {'header':header, 'body':body}
 
-def checkspf():
+def decode_body(body: dict):
+    encoding = body.get('parts',{})[0].get('body',[]).get('parts',[])[0].get('headers',{}).get('Content-Transfer-Encoding','')
+    content = body.get('parts', {})[0].get('body', []).get('parts',[])[0].get('body',{}).get('content','')
+    if encoding == 'base64':
+        decoded_content = base64.b64decode(content).decode('ascii', errors='ignore')
+    else:
+        raise ValueError(f'Unknown encoding: {encoding}')
+
+
+    return decoded_content
+
+def check_spf(header: dict):
     pass
 
-def checkdkim():
+def check_dkim(header: dict):
     pass
 
-def checkdmarc():
+def check_dmarc(header: dict):
     pass
 
-def extractindicators():
+def extract_address(text:str):
+    pattern = r'[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}'
+    return re.findall(pattern, text)
+
+def extract_indicators(header:dict, body:str):
+    data = {}
+
+    print (header)
+
+    data.update({'subject':header.get('Subject')})
+    data.update({'from': extract_address(header.get('From'))[0]})
+    data.update({'to': extract_address(header.get('To'))[0]})
+    data.update({'reply_to': extract_address(header.get('Reply-To'))[0]})
+
+    pattern = r'https?://[^\s]+|www\.[^\s]+'
+    data.update({'url': re.findall(pattern,body)})
+
+
+    return data
+
+def analyse_urls():
     pass
 
-def analyseurls():
-    pass
-
-def analyseattachment():
+def analyse_attachment():
     pass
 
 
 if __name__ == '__main__':
     #if len(sys.argv) > 2:
-    #    raise ValueError('No email provided as an the argument')
+    #    raise ValueError('No email provided as an argument')
     #filepath = sys.argv[1]
     filepath = '../../Desktop/l.eml'
-    mail = readmail(filepath)
+    mail = read_mail(filepath)
+    body = decode_body(mail.get('body'))
+    ioc = extract_indicators(mail.get('header'), body)
+    print(ioc)
