@@ -9,11 +9,12 @@ The tool offeres a easy command line interface the analyses .eml files for secur
 
 # Usage
 ```commandline
+usage: main.py [-h] [-f FILE] [-e [EXTRACT]] [--vt] [--vt-key VT_KEY]
 
-main.py /path/to/mail.eml
-
-main.py /path/to/mail.eml -t
-
-main.py /path/to/mail.eml -a /path/to/put/attachments
-
+options:
+  -h, --help              show this help message and exit
+  -f, --file FILE         The path to the .eml to analyse
+  -e, --extract EXTRACT   Extract attachments (optionally specify output directory)
+  --vt                    Upload indicators to VT for a verdict
+  --vt-key VT_KEY         VirusTotal API key
 ```
