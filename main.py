@@ -1,12 +1,16 @@
 import argparse
 import base64
+import json
 import quopri
 import re
 import urllib.parse
 from hashlib import sha256, md5
 
 import requests
-from pandas.core.dtypes.inference import is_bool
+from pipreqs.pipreqs import join
+from rich.console import Console
+from rich.pretty import Pretty
+from rich.table import Table
 
 
 def split_headers_body(raw_email: str):
@@ -214,7 +218,7 @@ def extract_urls(body: str):
         url = re.split(r'[\"\'<>\s]', url)[0]
         url.rstrip('),.')
         data.add(url)
-    return data
+    return list(data)
 
 
 def extract_auth_res(headers: dict):
@@ -237,13 +241,14 @@ def extract_domains(mail_data: dict):
         return url.split('/')[0]
 
     domains.add(extract_domain_from_mail(mail_data.get('from')))
-    domains.add(extract_domain_from_mail(mail_data.get('reply_to')))
+    if mail_data.get('reply_to') is not None:
+        domains.add(extract_domain_from_mail(mail_data.get('reply_to')))
 
     if mail_data.get('urls'):
         for url in mail_data.get('urls'):
             domains.add(extract_domain_from_url(url))
 
-    return domains
+    return list(domains)
 
 
 def extract_data(header: dict, body: str):
@@ -263,6 +268,16 @@ def extract_data(header: dict, body: str):
 
     return data
 
+def vt_verdict(verdict:dict):
+    if verdict.get('malicious') > 0:
+        return 'malicious'
+    elif verdict.get('suspicious') > 0:
+        return 'suspicious'
+    elif verdict.get('harmless') > 0:
+        return 'benign'
+    else:
+        return 'unknown'
+
 
 def vt_lookup(indicator: str, api_key):
     url = f'https://www.virustotal.com/api/v3/search?query={indicator}'
@@ -273,10 +288,12 @@ def vt_lookup(indicator: str, api_key):
     response = requests.get(url, headers=headers)
 
     if response.status_code == 200:
-        return response.json().get('data', {})[0].get('attributes', {}).get('last_analysis_stats', {})
+        if len(response.json().get('data', {})) == 0:
+            return 'unknown'
+        res = response.json().get('data', {})[0].get('attributes', {}).get('last_analysis_stats', {})
+        return vt_verdict(res)
     else:
         raise LookupError(f'Failed to perform vt lookup with status code: {response.status_code}')
-
 
 def verdict_check(mail_data, api_key):
     verdicts = {}
@@ -284,7 +301,7 @@ def verdict_check(mail_data, api_key):
         files = {}
         for file in mail_data.get('attachments'):
             files.update({file.get('filename'): vt_lookup(file.get('sha256'), api_key)})
-        verdicts.update({'files': files})
+        verdicts.update({'attachments': files})
 
     if mail_data.get('domains'):
         domains = {}
@@ -293,15 +310,97 @@ def verdict_check(mail_data, api_key):
         verdicts.update({'domains': domains})
 
     if mail_data.get('sender-ip'):
-        verdicts.update({'sender-ip': vt_lookup(mail_data.get('sender-ip'), api_key)})
-
-    if mail_data.get('urls'):
-        urls = {}
-        for url in mail_data.get('urls'):
-            urls.update({url: vt_lookup(url, api_key)})
-        verdicts.update({'urls': urls})
+        verdicts.update({'sender-ip': {mail_data.get('sender-ip'):vt_lookup(mail_data.get('sender-ip'), api_key)}})
 
     return verdicts
+
+def color_ioc(ioc):
+    if isinstance(ioc, dict):
+        match ioc.values()[0]:
+            case 'malicious':
+                return f'[red]{ioc.items()[0]}[/]'
+            case 'suspicious':
+                return f'[yellow]{ioc.items()[0]}[/]'
+            case 'benign':
+                return f'[green]{ioc.items()[0]}[/]'
+            case _:
+                return f'[white]{ioc.items()[0]}[/]'
+    elif isinstance(ioc, tuple):
+        if 'malicious' == ioc[1]:
+            return f'[red]{ioc[0]}[/]'
+        elif 'suspicious' == ioc[1]:
+            return f'[yellow]{ioc[0]}[/]'
+        elif 'benign' == ioc[1]:
+            return f'[green]{ioc[0]}[/]'
+        else:
+            return f'[blue]{ioc[0]}[/]'
+    else:
+        return f'[blue]{ioc}[/]'
+
+
+def human_radable(mail_data):
+    console = Console()
+    table = Table(title='  Mail Header', show_lines=True)
+    table.add_column('Field', style='cyan', no_wrap=True)
+    table.add_column('Value', style='white', no_wrap=True)
+
+    for key, value in mail_data.items():
+        if isinstance(value, dict):
+            if key == 'auth':
+                for auth, status in dict(value).items():
+                    rendered = '-' if status is None else status
+                    match rendered.lower():
+                        case 'pass':
+                            rendered = '[green]pass[/]'
+                        case 'fail':
+                            rendered = '[red]fail[/]'
+                        case 'softfail':
+                            rendered = '[yellow]softfail[/]'
+                    table.add_row(auth, rendered)
+            elif key == 'domains':
+                domains = []
+                for entry in value.items():
+                    domains.append(color_ioc(entry))
+                rendered = '\n'.join(domains)
+                table.add_row(key, rendered)
+            elif key == 'attachments':
+                files = []
+                for entry in value.items():
+                    files.append(color_ioc(entry))
+                rendered = '\n'.join(files)
+                table.add_row(key, rendered)
+            elif key == 'sender-ip':
+                for entry in value.items():
+                    table.add_row(key, color_ioc(entry))
+            else:
+                rendered = Pretty(value, expand_all=True)
+                table.add_row(key, rendered)
+        elif isinstance(value, set):
+            rendered = '\n'.join((sorted(value)))
+            table.add_row(key, rendered)
+        elif isinstance(value, list):
+            if key == 'attachments':
+                if len(value) > 0:
+                    files = [file.get('filename') for file in value]
+                    rendered = '\n'.join(files)
+                else:
+                    rendered = '-'
+            elif key == 'urls':
+                urls = list(value)
+                start = '\n'.join(urls[:5])
+                rest = f'\n... (+{len(urls) - 5} more)' if len(urls) > 5 else ''
+                rendered = start + rest
+            else:
+                rendered = '\n'.join(map(str, value)) if value else '-'
+            table.add_row(key, rendered)
+        else:
+            if key == 'sender-ip' and value is not None:
+                value = color_ioc(value)
+            rendered = str(value)
+            table.add_row(key, rendered)
+    console.print(table)
+
+
 
 
 if __name__ == '__main__':
@@ -310,8 +409,7 @@ if __name__ == '__main__':
         '-f', '--file',
         nargs=1,
         type=str,
-        # required=True,
-        default='../../Desktop/p.eml',
+        required=True,
         help='The path to the .eml to analyse'
     )
     parser.add_argument(
@@ -333,17 +431,30 @@ if __name__ == '__main__':
         default=None,
         help='VirusTotal API key'
     )
+    parser.add_argument(
+        '-o', '--output',
+        nargs=1,
+        type=str,
+        choices=['json', 'human-readable'],
+        default='human-readable',
+        help='Defines the output of the script'
+    )
 
     args = parser.parse_args()
 
-    mail = read_mail(args.file)
+    mail = read_mail(args.file[0])
 
     body_text = get_text_from_parsed(mail.get('body'))
     data = extract_data(mail.get('header'), body_text)
-    data.update({'attachments': extract_attachments(mail.get('body'), args.extract,
-                                                    '.' if is_bool(args.extract) else args.extract)})
+    data.update({'attachments': extract_attachments(mail.get('body'), args.extract,'.' if isinstance(args.extract, bool) else args.extract)})
+
     if args.vt:
         if args.vt_key is None:
             raise ValueError('API Key not defined. ')
         else:
-            verdict_check(data, args.vt_key)
+            data.update(verdict_check(data, args.vt_key))
+
+    if args.output == 'human-readable':
+        human_radable(data)
+    elif args.output[0] == 'json':
+        print(json.dumps(data, indent=2))
