@@ -17,6 +17,9 @@ def color_ioc(ioc):
     else:
         return f'[blue]{ioc}[/]'
 
+def defang(url):
+    return url.replace('https://', 'hxxps://').replace('http://', 'hxxp://').replace('.', '[.]')
+
 
 def human_readable(mail_data):
     """Render the mail data dict as a formatted Rich table in the terminal."""
@@ -68,7 +71,7 @@ def human_readable(mail_data):
                 else:
                     rendered = '-'
             elif key == 'urls':
-                urls = list(value)
+                urls = [defang(url) for url in value]
                 start = '\n'.join(urls[:5])
                 rest = f'\n... (+{len(urls) - 5} more)' if len(urls) > 5 else ''
                 rendered = start + rest
