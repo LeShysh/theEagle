@@ -1,7 +1,7 @@
 import re
 from hashlib import md5, sha256
 
-from parser import decode_body, get_filename, is_attachment
+from parser import decode_body, get_filename, is_attachment, decode_rfc2047
 
 
 def extract_address(text: str):
@@ -136,7 +136,7 @@ def extract_attachments(parsed: dict, extract: bool = True, save_path: str = '.'
 def extract_data(header: dict, body: str):
     """Orchestrate all header/body extraction and return a unified mail data dict."""
     mail_data = {
-        'subject': header.get('subject'),
+        'subject': decode_rfc2047(header.get('subject', '')),
         'from': extract_address(header.get('from')) if header.get('from', None) else None,
         'to': extract_address(header.get('to')) if header.get('to', None) else None,
         'reply_to': extract_address(header.get('reply-to')) if header.get('reply-to', None) else None,

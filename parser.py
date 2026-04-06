@@ -143,3 +143,19 @@ def read_mail(filepath: str):
     body = parse_body(body_text, header)
 
     return {'header': header, 'body': body}
+
+def decode_rfc2047(text: str) -> str:
+    """Decode RFC 2047 encoded words in a header value, returning a plain Unicode string."""
+    pattern = r'=\?([^?]+)\?([BbQq])\?([^?]*)\?='
+
+    def decode_word(match):
+        charset, encoding, encoded_text = match.group(1), match.group(2), match.group(3)
+        if encoding.upper() == 'B':
+            data = base64.b64decode(encoded_text)
+        else:  # Q
+            data = quopri.decodestring(encoded_text.replace('_', ' '))
+        return data.decode(charset, errors='replace')
+
+    # Remove whitespace between consecutive encoded words before decoding
+    text = re.sub(r'\?=\s+=\?', '?==?', text)
+    return re.sub(pattern, decode_word, text)
