@@ -3,19 +3,19 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 import requests
 
 
-def vt_verdict(verdict: dict):
+def vt_verdict(verdict: dict, sensitivity:int):
     """Convert a VirusTotal last_analysis_stats dict into a single verdict string (malicious/suspicious/benign/unknown)."""
-    if verdict.get('malicious') > 0:
+    if verdict.get('malicious') >= sensitivity:
         return 'malicious'
-    elif verdict.get('suspicious') > 0:
+    elif verdict.get('suspicious') >= sensitivity:
         return 'suspicious'
-    elif verdict.get('harmless') > 0:
+    elif verdict.get('harmless') >= sensitivity:
         return 'benign'
     else:
         return 'unknown'
 
 
-def vt_lookup(indicator: str, api_key: str):
+def vt_lookup(indicator: str, api_key: str, sensitivity:int):
     """Query the VirusTotal API for a given indicator (domain, IP, or hash) and return its verdict string."""
     url = f'https://www.virustotal.com/api/v3/search?query={indicator}'
     headers = {'x-apikey': api_key}
@@ -26,12 +26,12 @@ def vt_lookup(indicator: str, api_key: str):
         if len(response.json().get('data', {})) == 0:
             return 'unknown'
         res = response.json().get('data', {})[0].get('attributes', {}).get('last_analysis_stats', {})
-        return vt_verdict(res)
+        return vt_verdict(res, sensitivity)
     else:
         raise LookupError(f'Failed to perform vt lookup with status code: {response.status_code}')
 
 
-def verdict_check(mail_data: dict, api_key: str):
+def verdict_check(mail_data: dict, api_key: str, sensitivity:int):
     """Look up all domains, IPs, and attachment hashes in VirusTotal and return a verdicts dict."""
     lookups = []
 
@@ -49,7 +49,7 @@ def verdict_check(mail_data: dict, api_key: str):
     futures = {}
     with ThreadPoolExecutor(max_workers=4) as executor:
         for category, label, indicator in lookups:
-            future = executor.submit(vt_lookup, indicator, api_key)
+            future = executor.submit(vt_lookup, indicator, api_key, sensitivity)
             futures[future] = (category, label)
 
         results = {}

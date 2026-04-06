@@ -9,7 +9,7 @@ A command-line tool for analysing `.eml` files for security-relevant information
 - **Attachment extraction** — saves attachments to disk and computes SHA256/MD5 hashes
 - **URL extraction** — pulls all `http`/`https`/`www` links from the email body
 - **Domain extraction** — collects unique domains from sender, reply-to, and URLs
-- **VirusTotal lookups** — queries VT for verdicts on domains, IPs, and attachment hashes
+- **VirusTotal lookups** — queries VT for verdicts on domains, IPs, and attachment hashes with configurable sensitivity
 
 ## Installation
 
@@ -20,7 +20,7 @@ pip install -r requirements.txt
 ## Usage
 
 ```
-usage: main.py [-h] -f FILE [-e [EXTRACT]] [--vt] [-o {json,human-readable}]
+usage: main.py [-h] -f FILE [-e [EXTRACT]] [--vt] [-o {json,human-readable}] [-s {high,medium,low}]
 
 options:
   -h, --help                        Show this help message and exit
@@ -28,6 +28,7 @@ options:
   -e [EXTRACT], --extract [EXTRACT] Extract attachments (optionally specify output directory)
   --vt                              Look up indicators on VirusTotal (requires VT_KEY env var)
   -o {json,human-readable}          Output format (default: human-readable)
+  -s {high,medium,low}              VT verdict sensitivity — minimum number of engine hits required (high: 1, medium: 3, low: 5). Default: high
 ```
 
 ## Examples
@@ -45,6 +46,11 @@ python main.py -f sample.eml -e ./attachments
 Run VirusTotal lookups and output as JSON:
 ```bash
 VT_KEY=your_api_key python main.py -f sample.eml --vt -o json
+```
+
+Run VirusTotal lookups with low sensitivity (only flag if 5+ engines agree):
+```bash
+VT_KEY=your_api_key python main.py -f sample.eml --vt -s low
 ```
 
 ## Environment Variables

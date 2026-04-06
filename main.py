@@ -37,6 +37,13 @@ if __name__ == '__main__':
         default='human-readable',
         help='Defines the output of the script'
     )
+    parser.add_argument(
+        '-s', '--sensitivity',
+        type=str,
+        choices=['high','medium','low'],
+        default='high',
+        help='VT verdict sensitivity — minimum number of engine hits required (high: 1, medium: 3, low: 5). Default: high'
+    )
 
     args = parser.parse_args()
 
@@ -50,7 +57,12 @@ if __name__ == '__main__':
         if os.getenv('VT_KEY') is None:
             raise ValueError('API Key not defined as the VT_KEY env. ')
         else:
-            data.update(verdict_check(data, os.getenv('VT_KEY')))
+            sensitivity = 1
+            match args.sensitivity:
+                case 'medium':  sensitivity = 3
+                case 'low':     sensitivity = 5
+
+            data.update(verdict_check(data, os.getenv('VT_KEY'),sensitivity))
 
     if args.output == 'human-readable':
         human_readable(data)
