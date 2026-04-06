@@ -1,13 +1,13 @@
 import argparse
 import base64
 import json
+import os
 import quopri
 import re
 import urllib.parse
 from hashlib import sha256, md5
 
 import requests
-from pipreqs.pipreqs import join
 from rich.console import Console
 from rich.pretty import Pretty
 from rich.table import Table
@@ -449,10 +449,10 @@ if __name__ == '__main__':
     data.update({'attachments': extract_attachments(mail.get('body'), args.extract,'.' if isinstance(args.extract, bool) else args.extract)})
 
     if args.vt:
-        if args.vt_key is None:
-            raise ValueError('API Key not defined. ')
+        if os.getenv('VT_KEY') is None:
+            raise ValueError('API Key not defined as the VT_KEY env. ')
         else:
-            data.update(verdict_check(data, args.vt_key))
+            data.update(verdict_check(data, os.getenv('VT_KEY')))
 
     if args.output == 'human-readable':
         human_radable(data)
