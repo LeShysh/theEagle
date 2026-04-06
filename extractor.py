@@ -59,7 +59,8 @@ def extract_domains(mail_data: dict):
         return mail.split('@')[1]
 
     def extract_domain_from_url(url: str):
-        url = url.split('://')[1]
+        if '://' in url:
+            url = url.split('://')[1]
         return url.split('/')[0]
 
     domains.add(extract_domain_from_mail(mail_data.get('from')))

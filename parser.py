@@ -52,7 +52,7 @@ def extract_boundary(content_type: str):
 
 def decode_body(body: str, header: dict):
     """Decode a body string according to its Content-Transfer-Encoding (base64, quoted-printable, or plain)."""
-    encoding = header.get('Content-Transfer-Encoding', '').lower()
+    encoding = header.get('content-transfer-encoding', '').lower()
 
     if encoding == 'base64':
         clean = body.replace('\n', '').replace('\r', '')
@@ -65,13 +65,13 @@ def decode_body(body: str, header: dict):
 
 def is_attachment(headers: dict):
     """Return True if the Content-Disposition header marks this part as an attachment."""
-    cd = headers.get('Content-Disposition', '')
+    cd = headers.get('content-disposition', '')
     return 'attachment' in cd.lower()
 
 
 def get_filename(headers: dict):
     """Extract the filename from a Content-Disposition header, handling RFC 5987 encoding."""
-    cd = headers.get('Content-Disposition', '')
+    cd = headers.get('content-disposition', '')
 
     for part in cd.split(';'):
         part = part.strip()
@@ -89,7 +89,7 @@ def get_filename(headers: dict):
 
 def parse_body(body: str, headers: dict):
     """Parse an email body into a structured dict, handling multipart and single-part messages."""
-    content_type = headers.get('Content-Type', '')
+    content_type = headers.get('content-type', '')
 
     if 'multipart' in content_type:
         boundary = extract_boundary(content_type)
