@@ -61,8 +61,13 @@ if __name__ == '__main__':
                 case 'medium':  sensitivity = 3
                 case 'low':     sensitivity = 5
                 case _:         sensitivity = 1
-
-            data.update(verdict_check(data, os.getenv('VT_KEY'),sensitivity))
+            verdicts = verdict_check(data, os.getenv('VT_KEY'),sensitivity)
+            if 'attachments' in verdicts:
+                for attachment in data['attachments']:
+                    fname = attachment.get('filename')
+                    attachment['verdict'] = verdicts['attachments'].get(fname, 'unknown')
+                verdicts.pop('attachments')
+            data.update(verdicts)
 
     if args.output == 'human-readable':
         human_readable(data)

@@ -1,6 +1,7 @@
 import re
 from hashlib import md5, sha256
 import html
+import mimetypes
 
 from parser import decode_body, get_filename, is_attachment, decode_rfc2047, parse_received_hop
 
@@ -131,6 +132,13 @@ def extract_attachments(parsed: dict, extract: bool = True, save_path: str = '.'
                         'md5': md5(data).hexdigest(),
                         'size': len(data)
                     }
+
+                    declared = headers.get('content-type', '').split(';')[0].strip()
+                    expected, _ = mimetypes.guess_type(filename or '')
+                    fileinfo['declared_type'] = declared
+                    fileinfo['mime_type'] = declared
+                    fileinfo['mime_mismatch'] = bool(
+                        expected and declared and not declared.startswith(expected.split('/')[0]))
 
                     if filename and extract:
                         filepath = f'{save_path}/{filename}'

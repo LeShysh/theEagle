@@ -21,6 +21,13 @@ def defang(url):
     """Defang the provided URL to avoid accidental clicks"""
     return url.replace('https://', 'hxxps://').replace('http://', 'hxxp://').replace('.', '[.]')
 
+def attachment_verdict(attachment: dict) -> str:
+    verdict = attachment.get('verdict', 'unknown')
+    if attachment.get('mime_mismatch'):
+        if verdict in ('benign', 'unknown'):
+            verdict = 'suspicious'
+    return verdict
+
 
 def human_readable(mail_data):
     """Render the mail data dict as a formatted Rich table in the terminal."""
@@ -49,12 +56,6 @@ def human_readable(mail_data):
                     domains.append(color_ioc(entry))
                 rendered = '\n'.join(domains)
                 table.add_row(key, rendered)
-            elif key == 'attachments':
-                files = []
-                for entry in value.items():
-                    files.append(color_ioc(entry))
-                rendered = '\n'.join(files)
-                table.add_row(key, rendered)
             elif key == 'sender-ip':
                 for entry in value.items():
                     table.add_row(key, color_ioc(entry))
@@ -66,9 +67,15 @@ def human_readable(mail_data):
             table.add_row(key, rendered)
         elif isinstance(value, list):
             if key == 'attachments':
-                if len(value) > 0:
-                    files = [file.get('filename') for file in value]
-                    rendered = '\n'.join(files)
+                if value:
+                    lines = []
+                    for f in value:
+                        name = f.get('filename', '?')
+                        verdict = attachment_verdict(f)
+                        if f.get('mime_mismatch'):
+                            name += ' (Type mismatch)'
+                        lines.append(color_ioc((name, verdict)))
+                    rendered = '\n'.join(lines)
                 else:
                     rendered = '-'
             elif key == 'urls':
