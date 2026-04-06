@@ -84,7 +84,7 @@ def extract_attachments(parsed: dict, extract: bool = True, save_path: str = '.'
 
                     attachments.append(fileinfo)
 
-            attachments.extend(extract_attachments(body, save_path))
+            attachments.extend(extract_attachments(body, extract, save_path))
 
     return attachments
 
@@ -132,12 +132,22 @@ def parse_headers(header_text: str):
         if line.startswith((' ', '\t')):
             # continuation line
             if current_key:
-                headers[current_key] += ' ' + line.strip()
+                if isinstance(headers[current_key], list):
+                    headers[current_key][-1] += ' ' + line.strip()
+                else:
+                    headers[current_key] += ' ' + line.strip()
         else:
             if ':' in line:
                 key, value = line.split(':', 1)
-                current_key = key.strip()
-                headers[current_key] = value.strip()
+                current_key = key.strip().lower()
+                if current_key in headers:
+                    existing = headers[current_key]
+                    if isinstance(existing, list):
+                        existing.append(value.strip())
+                    else:
+                        headers[current_key] = [existing, value.strip()]
+                else:
+                    headers[current_key] = value.strip()
 
     return headers
 
@@ -169,8 +179,8 @@ def decode_body(body: str, header: dict):
 
 
 def extract_address(text: str):
-    pattern = r'[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}'
-    return re.findall(pattern, text)
+    pattern = r'[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+'
+    return re.findall(pattern, text)[0]
 
 
 def get_text_from_parsed(parsed):
@@ -196,14 +206,12 @@ def get_text_from_parsed(parsed):
 
 
 def extract_send_ip(headers: dict):
-    received_headers = []
+    received = headers.get('received', [])
+    if isinstance(received, str):
+        received = [received]
 
-    for key, value in headers.items():
-        if key.lower() == 'received':
-            received_headers.append(value)
-
-    if received_headers:
-        first_hop = received_headers[-1]
+    if received:
+        first_hop = received[-1]
         pattern = r'\b\d{1,3}(?:\.\d{1,3}){3}\b'
         match = re.search(pattern, first_hop)
         return match.group(0) if match else None
@@ -222,11 +230,16 @@ def extract_urls(body: str):
 
 
 def extract_auth_res(headers: dict):
-    auth = headers.get('Authentication-Results', '')
+    auth = headers.get('authentication-results', '')
+    if isinstance(auth, list):
+        auth = ' '.join(auth)
+    spf = re.search(r'spf=(\w+)', auth)
+    dkim = re.search(r'dkim=(\w+)', auth)
+    dmarc = re.search(r'dmarc=(\w+)', auth)
     return {
-        'spf': re.search(r'spf=(\w+)', auth).group(1) if re.search(r'spf=(\w+)', auth) else None,
-        'dkim': re.search(r'dkim=(\w+)', auth).group(1) if re.search(r'dkim=(\w+)', auth) else None,
-        'dmarc': re.search(r'dmarc=(\w+)', auth).group(1) if re.search(r'dmarc=(\w+)', auth) else None
+        'spf': spf.group(1) if spf else None,
+        'dkim': dkim.group(1) if dkim else None,
+        'dmarc': dmarc.group(1) if dmarc else None
     }
 
 
@@ -252,21 +265,21 @@ def extract_domains(mail_data: dict):
 
 
 def extract_data(header: dict, body: str):
-    data = {
-        'subject': header.get('Subject'),
-        'from': extract_address(header.get('From'))[0] if header.get('From', None) else None,
-        'to': extract_address(header.get('To'))[0] if header.get('To', None) else None,
-        'reply_to': extract_address(header.get('Reply-To'))[0] if header.get('Reply-To', None) else None,
+    mail_data = {
+        'subject': header.get('subject'),
+        'from': extract_address(header.get('from')) if header.get('from', None) else None,
+        'to': extract_address(header.get('to')) if header.get('to', None) else None,
+        'reply_to': extract_address(header.get('reply-to')) if header.get('reply-to', None) else None,
         'sender-ip': extract_send_ip(header),
-        'date': header.get('Date') if header.get('From', None) else None,
-        'message-id': header.get('Message-Id') if header.get('From', None) else None,
+        'date': header.get('date') if header.get('date', None) else None,
+        'message-id': header.get('message-id') if header.get('message-id', None) else None,
         'auth': extract_auth_res(header),
         'urls': extract_urls(body)
     }
 
-    data.update({'domains': extract_domains(data)})
+    mail_data.update({'domains': extract_domains(mail_data)})
 
-    return data
+    return mail_data
 
 def vt_verdict(verdict:dict):
     if verdict.get('malicious') > 0:
@@ -338,7 +351,7 @@ def color_ioc(ioc):
         return f'[blue]{ioc}[/]'
 
 
-def human_radable(mail_data):
+def human_readable(mail_data):
     console = Console()
     table = Table(title='  Mail Header', show_lines=True)
     table.add_column('Field', style='cyan', no_wrap=True)
@@ -352,10 +365,11 @@ def human_radable(mail_data):
                     match rendered.lower():
                         case 'pass':
                             rendered = '[green]pass[/]'
-                        case 'fail':
-                            rendered = '[red]fail[/]'
-                        case 'softfail':
-                            rendered = '[yellow]softfail[/]'
+                        case 'none':
+                            rendered = '[yellow]-[/]'
+                        case _:
+                            rendered = f'[red]{rendered.lower()}[/]'
+
                     table.add_row(auth, rendered)
             elif key == 'domains':
                 domains = []
@@ -399,8 +413,6 @@ def human_radable(mail_data):
             rendered = str(value)
             table.add_row(key, rendered)
     console.print(table)
-
-
 
 
 if __name__ == '__main__':
@@ -455,6 +467,6 @@ if __name__ == '__main__':
             data.update(verdict_check(data, os.getenv('VT_KEY')))
 
     if args.output == 'human-readable':
-        human_radable(data)
+        human_readable(data)
     elif args.output[0] == 'json':
         print(json.dumps(data, indent=2))
