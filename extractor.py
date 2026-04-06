@@ -1,5 +1,6 @@
 import re
 from hashlib import md5, sha256
+import html
 
 from parser import decode_body, get_filename, is_attachment, decode_rfc2047
 
@@ -30,10 +31,16 @@ def extract_send_ip(headers: dict):
 
 def extract_urls(body: str):
     """Extract and deduplicate all HTTP/HTTPS/www URLs from the email body text."""
-    pattern = r'https?://[^\s]+|www\.[^\s]+'
-    urls = re.findall(pattern, body)
+    attr_pattern = r'(?:href|src|action)=["\']?(https?://[^\s"\'<>]+|www\.[^\s"\'<>]+)'
+    attr_urls = re.findall(attr_pattern, body, re.IGNORECASE)
+
+    body = re.sub(r'<[^>]+>', ' ', body)
+    body = html.unescape(body)
+
+    text_urls = re.findall(r'https?://[^\s]+|www\.[^\s]+', body)
+
     data = set()
-    for url in urls:
+    for url in attr_urls + text_urls:
         url = re.split(r'[\"\'<>\s]', url)[0]
         url = url.rstrip('),.')
         data.add(url)
