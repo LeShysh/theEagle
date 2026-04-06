@@ -6,24 +6,14 @@ from rich.table import Table
 def color_ioc(ioc):
     """Wrap an IOC value in a Rich colour tag based on its verdict (red=malicious, yellow=suspicious, green=benign, blue=unknown)."""
     if isinstance(ioc, dict):
-        match ioc.values()[0]:
-            case 'malicious':
-                return f'[red]{ioc.items()[0]}[/]'
-            case 'suspicious':
-                return f'[yellow]{ioc.items()[0]}[/]'
-            case 'benign':
-                return f'[green]{ioc.items()[0]}[/]'
-            case _:
-                return f'[white]{ioc.items()[0]}[/]'
+        ioc = next(iter(ioc.items()))
+        return color_ioc(ioc)
     elif isinstance(ioc, tuple):
-        if 'malicious' == ioc[1]:
-            return f'[red]{ioc[0]}[/]'
-        elif 'suspicious' == ioc[1]:
-            return f'[yellow]{ioc[0]}[/]'
-        elif 'benign' == ioc[1]:
-            return f'[green]{ioc[0]}[/]'
-        else:
-            return f'[blue]{ioc[0]}[/]'
+        match ioc[1]:
+            case 'malicious':   return f'[red]{ioc[0]}[/]'
+            case 'suspicious':  return f'[yellow]{ioc[0]}[/]'
+            case 'benign':      return f'[green]{ioc[0]}[/]'
+            case _:             return f'[blue]{ioc[0]}[/]'
     else:
         return f'[blue]{ioc}[/]'
 
