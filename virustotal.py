@@ -1,3 +1,5 @@
+from concurrent.futures import ThreadPoolExecutor, as_completed
+
 import requests
 
 
@@ -31,21 +33,32 @@ def vt_lookup(indicator: str, api_key: str):
 
 def verdict_check(mail_data: dict, api_key: str):
     """Look up all domains, IPs, and attachment hashes in VirusTotal and return a verdicts dict."""
-    verdicts = {}
+    lookups = []
 
     if mail_data.get('attachments'):
-        files = {}
         for file in mail_data.get('attachments'):
-            files.update({file.get('filename'): vt_lookup(file.get('sha256'), api_key)})
-        verdicts.update({'attachments': files})
+            lookups.append(('attachments', file.get('filename'), file.get('sha256')))
 
     if mail_data.get('domains'):
-        domains = {}
         for domain in mail_data.get('domains'):
-            domains.update({domain: vt_lookup(domain, api_key)})
-        verdicts.update({'domains': domains})
+            lookups.append(('domains', domain, domain))
 
     if mail_data.get('sender-ip'):
-        verdicts.update({'sender-ip': {mail_data.get('sender-ip'): vt_lookup(mail_data.get('sender-ip'), api_key)}})
+        lookups.append(('sender-ip', mail_data.get('sender-ip'), mail_data.get('sender-ip')))
+
+    futures = {}
+    with ThreadPoolExecutor(max_workers=4) as executor:
+        for category, label, indicator in lookups:
+            future = executor.submit(vt_lookup, indicator, api_key)
+            futures[future] = (category, label)
+
+        results = {}
+        for future in as_completed(futures):
+            category, label = futures[future]
+            results[(category, label)] = future.result()
+
+    verdicts = {}
+    for (category, label), verdict in results.items():
+        verdicts.setdefault(category, {})[label] = verdict
 
     return verdicts
