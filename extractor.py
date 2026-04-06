@@ -7,7 +7,11 @@ from parser import decode_body, get_filename, is_attachment, decode_rfc2047
 def extract_address(text: str):
     """Extract the first email address found in a string (e.g. from a From or To header value)."""
     pattern = r'[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+'
-    return re.findall(pattern, text)[0]
+    res = re.findall(pattern, text)
+    if len(res) > 0:
+        return res[-1]
+    else:
+        return None
 
 
 def extract_send_ip(headers: dict):
@@ -31,7 +35,7 @@ def extract_urls(body: str):
     data = set()
     for url in urls:
         url = re.split(r'[\"\'<>\s]', url)[0]
-        url.rstrip('),.')
+        url = url.rstrip('),.')
         data.add(url)
     return list(data)
 
@@ -82,7 +86,7 @@ def get_text_from_parsed(parsed):
         try:
             decoded = decode_body(content, headers)
             charset = 'utf-8'
-            content_type = headers.get('Content-Type', '')
+            content_type = headers.get('content-type', '')
             m = re.search(r'charset=([^\s;]+)', content_type, re.IGNORECASE)
             if m:
                 charset = m.group(1).strip('"').lower()

@@ -153,7 +153,7 @@ def decode_rfc2047(text: str) -> str:
         if encoding.upper() == 'B':
             data = base64.b64decode(encoded_text)
         else:  # Q
-            data = quopri.decodestring(encoded_text.replace('_', ' '))
+            data = quopri.decodestring(encoded_text.replace('_', '\x20'))
         return data.decode(charset, errors='replace')
 
     # Remove whitespace between consecutive encoded words before decoding
