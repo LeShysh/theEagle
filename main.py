@@ -435,13 +435,7 @@ if __name__ == '__main__':
         '--vt',
         action='store_true',
         default=False,
-        help='Upload indicators to VT for a verdict'
-    )
-    parser.add_argument(
-        '--vt-key',
-        type=str,
-        default=None,
-        help='VirusTotal API key'
+        help='Upload indicators to VT for a verdict (API Key from env: VT_KEY)'
     )
     parser.add_argument(
         '-o', '--output',
