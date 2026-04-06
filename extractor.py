@@ -22,7 +22,7 @@ def extract_send_ip(headers: dict):
 
     if received:
         first_hop = received[-1]
-        pattern = r'\b\d{1,3}(?:\.\d{1,3}){3}\b'
+        pattern = r'\b(?:\d{1,3}(?:\.\d{1,3}){3}|[0-9a-fA-F:]{3,39})\b'
         match = re.search(pattern, first_hop)
         return match.group(0) if match else None
     return None

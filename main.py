@@ -57,10 +57,10 @@ if __name__ == '__main__':
         if os.getenv('VT_KEY') is None:
             raise ValueError('API Key not defined as the VT_KEY env. ')
         else:
-            sensitivity = 1
             match args.sensitivity:
                 case 'medium':  sensitivity = 3
                 case 'low':     sensitivity = 5
+                case _:         sensitivity = 1
 
             data.update(verdict_check(data, os.getenv('VT_KEY'),sensitivity))
 
