@@ -159,3 +159,26 @@ def decode_rfc2047(text: str) -> str:
     # Remove whitespace between consecutive encoded words before decoding
     text = re.sub(r'\?=\s+=\?', '?==?', text)
     return re.sub(pattern, decode_word, text)
+
+
+def parse_received_hop(received: str) -> dict:
+    hop = {}
+
+    m = re.search(r'from\s+(\S+)\s+\((?:[^)]*\s+)?\[?([\d:.a-fA-F]+)\]?\)', received, re.IGNORECASE)
+    if m:
+        hop['from_host'] = m.group(1)
+        hop['from_ip']   = m.group(2)
+
+    m = re.search(r'by\s+(\S+)', received, re.IGNORECASE)
+    if m:
+        hop['by'] = m.group(1)
+
+    m = re.search(r'with\s+(\S+)', received, re.IGNORECASE)
+    if m:
+        hop['with'] = m.group(1)
+
+    m = re.search(r';\s*(.+)$', received.strip())
+    if m:
+        hop['time'] = m.group(1).strip()
+
+    return hop

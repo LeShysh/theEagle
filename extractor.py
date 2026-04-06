@@ -2,7 +2,7 @@ import re
 from hashlib import md5, sha256
 import html
 
-from parser import decode_body, get_filename, is_attachment, decode_rfc2047
+from parser import decode_body, get_filename, is_attachment, decode_rfc2047, parse_received_hop
 
 
 def extract_address(text: str):
@@ -144,20 +144,25 @@ def extract_attachments(parsed: dict, extract: bool = True, save_path: str = '.'
     return attachments
 
 
-def extract_data(header: dict, body: str):
+def extract_data(headers: dict, body: str):
     """Orchestrate all header/body extraction and return a unified mail data dict."""
     mail_data = {
-        'subject': decode_rfc2047(header.get('subject', '')),
-        'from': extract_address(header.get('from')) if header.get('from', None) else None,
-        'to': extract_address(header.get('to')) if header.get('to', None) else None,
-        'reply_to': extract_address(header.get('reply-to')) if header.get('reply-to', None) else None,
-        'sender-ip': extract_send_ip(header),
-        'date': header.get('date') if header.get('date', None) else None,
-        'message-id': header.get('message-id') if header.get('message-id', None) else None,
-        'auth': extract_auth_res(header),
-        'urls': extract_urls(body)
+        'subject': decode_rfc2047(headers.get('subject', '')),
+        'from': extract_address(headers.get('from')) if headers.get('from', None) else None,
+        'to': extract_address(headers.get('to')) if headers.get('to', None) else None,
+        'reply_to': extract_address(headers.get('reply-to')) if headers.get('reply-to', None) else None,
+        'sender-ip': extract_send_ip(headers),
+        'date': headers.get('date') if headers.get('date', None) else None,
+        'message-id': headers.get('message-id') if headers.get('message-id', None) else None,
+        'auth': extract_auth_res(headers),
+        'urls': extract_urls(body),
     }
 
     mail_data.update({'domains': extract_domains(mail_data)})
+
+    raw_received = headers.get('received', [])
+    if isinstance(raw_received, str):
+        raw_received = [raw_received]
+    mail_data.update({'received_chain': [parse_received_hop(r) for r in reversed(raw_received)]})
 
     return mail_data

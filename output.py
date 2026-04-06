@@ -4,7 +4,7 @@ from rich.table import Table
 
 
 def color_ioc(ioc):
-    """Wrap an IOC value in a Rich colour tag based on its verdict (red=malicious, yellow=suspicious, green=benign, blue=unknown)."""
+    """Wrap an IOC value in a Rich color tag based on its verdict (red=malicious, yellow=suspicious, green=benign, blue=unknown)."""
     if isinstance(ioc, dict):
         ioc = next(iter(ioc.items()))
         return color_ioc(ioc)
@@ -18,6 +18,7 @@ def color_ioc(ioc):
         return f'[blue]{ioc}[/]'
 
 def defang(url):
+    """Defang the provided URL to avoid accidental clicks"""
     return url.replace('https://', 'hxxps://').replace('http://', 'hxxp://').replace('.', '[.]')
 
 
@@ -75,6 +76,16 @@ def human_readable(mail_data):
                 start = '\n'.join(urls[:5])
                 rest = f'\n... (+{len(urls) - 5} more)' if len(urls) > 5 else ''
                 rendered = start + rest
+            elif key == 'received_chain':
+                lines = []
+                for i, hop in enumerate(value):
+                    ip = hop.get('from_ip', '?')
+                    host = hop.get('from_host', '')
+                    by = hop.get('by', '?')
+                    proto = hop.get('with', '')
+                    time = hop.get('time', '')[:25]  # trim long timezone strings
+                    lines.append(f"[dim]{i + 1}.[/] {ip} [dim]({host})[/] → {by} [dim]{proto} {time}[/]")
+                rendered = '\n'.join(lines) if lines else '-'
             else:
                 rendered = '\n'.join(map(str, value)) if value else '-'
             table.add_row(key, rendered)
