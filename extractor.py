@@ -143,6 +143,11 @@ def extract_attachments(parsed: dict, extract: bool = True, save_path: str = '.'
 
     return attachments
 
+def extract_originating_ip(headers: dict):
+    xip = headers.get('x-originating-ip', '')
+    match = re.search(r'[\d.:a-fA-F]+', xip)
+    return match.group(0) if match else None
+
 
 def extract_data(headers: dict, body: str):
     """Orchestrate all header/body extraction and return a unified mail data dict."""
@@ -152,6 +157,7 @@ def extract_data(headers: dict, body: str):
         'to': extract_address(headers.get('to')) if headers.get('to', None) else None,
         'reply_to': extract_address(headers.get('reply-to')) if headers.get('reply-to', None) else None,
         'sender-ip': extract_send_ip(headers),
+        'x-originating-ip': extract_originating_ip(headers),
         'date': headers.get('date') if headers.get('date', None) else None,
         'message-id': headers.get('message-id') if headers.get('message-id', None) else None,
         'auth': extract_auth_res(headers),
